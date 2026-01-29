@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>LifeOS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+--bg:#020617;--panel:#0f172a;--card:#020617;
+--text:#e5e7eb;--accent:#22c55e;--danger:#ef4444;
+--warn:#facc15;--muted:#64748b;
+}
+.light{
+--bg:#f1f5f9;--panel:#ffffff;--card:#e5e7eb;
+--text:#020617;
+}
+*{box-sizing:border-box}
+body{
+margin:0;font-family:system-ui;background:var(--bg);
+color:var(--text);padding:10px;
+}
+.app{
+max-width:1100px;margin:auto;
+display:grid;grid-template-columns:2fr 1fr;gap:10px;
+}
+.panel{
+background:var(--panel);border-radius:14px;
+padding:12px;overflow:auto;
+}
+h1,h2{margin:.2em 0}
+input,select,textarea,button{
+background:var(--card);color:var(--text);
+border:none;border-radius:8px;padding:6px;
+}
+button{cursor:pointer}
+.alt{background:#334155}
+.danger{background:var(--danger)}
+.task{
+background:var(--card);margin:6px 0;padding:6px;
+border-radius:8px;display:flex;gap:6px;align-items:center;
+}
+.task.done{opacity:.5;text-decoration:line-through}
+.task.high{border-left:4px solid var(--danger)}
+.task.medium{border-left:4px solid var(--warn)}
+.sub{
+margin-left:20px;font-size:13px;
+display:flex;gap:5px;
+}
+.tags{font-size:11px;color:var(--accent)}
+.progress{background:#111;border-radius:10px;overflow:hidden;height:10px}
+.progress div{height:100%;background:var(--accent)}
+.focus .panel:last-child{display:none}
+.timer{font-size:32px;text-align:center}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<!-- IZQUIERDA -->
+<div class="panel">
+<h1>🧠 LifeOS</h1>
+
+<input id="search" placeholder="Buscar…">
+
+<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+<input id="taskText" placeholder="Nueva tarea (#tags)">
+<input type="date" id="taskDate">
+<select id="taskPriority">
+<option value="low">Baja</option>
+<option value="medium">Media</option>
+<option value="high">Alta</option>
+</select>
+</div>
+
+<button onclick="addTask()">➕ Añadir</button>
+<button class="alt" onclick="undo()">↩ Undo</button>
+<button class="alt" onclick="toggleView()">🧱 Kanban</button>
+
+<div>
+<button class="alt" onclick="setFilter('all')">Todas</button>
+<button class="alt" onclick="setFilter('todo')">Pendientes</button>
+<button class="alt" onclick="setFilter('done')">Hechas</button>
+<button class="alt" onclick="setFilter('today')">Hoy</button>
+</div>
+
+<ul id="taskList"></ul>
+</div>
+
+<!-- DERECHA -->
+<div class="panel">
+<h2>📊 Progreso</h2>
+<div class="progress"><div id="bar"></div></div>
+<small id="stats"></small>
+
+<h2>⏱ Pomodoro</h2>
+<div class="timer" id="timer">25:00</div>
+<button onclick="startPomodoro()">▶</button>
+<button class="alt" onclick="resetPomodoro()">⟳</button>
+
+<h2>📝 Notas</h2>
+<textarea id="notes" rows="5"></textarea>
+
+<button class="alt" onclick="toggleTheme()">🌓 Tema</button>
+<button class="alt" onclick="toggleFocus()">🎯 Focus</button>
+<button class="danger" onclick="resetAll()">🗑 Reset</button>
+</div>
+
+</div>
+
+<script>
+let tasks=JSON.parse(localStorage.tasks||"[]");
+let notes=document.getElementById("notes");
+notes.value=localStorage.notes||"";
+notes.oninput=()=>localStorage.notes=notes.value;
+
+let filter="all",view="list";
+let history=[];
+
+function snapshot(){
+history.push(JSON.stringify(tasks));
+if(history.length>20)history.shift();
+}
+
+function undo(){
+if(!history.length)return;
+tasks=JSON.parse(history.pop());
+save();render();
+}
+
+function save(){
+localStorage.tasks=JSON.stringify(tasks);
+}
+
+function addTask(){
+if(!taskText.value.trim())return;
+snapshot();
+let tags=taskText.value.match(/#\w+/g)||[];
+tasks.push({
+id:Date.now(),
+text:taskText.value.replace(/#\w+/g,"").trim(),
+tags,
+date:taskDate.value,
+priority:taskPriority.value,
+done:false,
+subs:[]
+});
+taskText.value="";taskDate.value="";
+save();render();
+}
+
+function render(){
+let list=document.getElementById("taskList");
+list.innerHTML="";
+let q=search.value.toLowerCase();
+let today=new Date().toISOString().slice(0,10);
+
+let visible=tasks.filter(t=>{
+if(filter==="done"&&!t.done)return false;
+if(filter==="todo"&&t.done)return false;
+if(filter==="today"&&t.date!==today)return false;
+if(q&&!t.text.toLowerCase().includes(q))return false;
+return true;
+});
+
+visible.forEach(t=>{
+let li=document.createElement("li");
+li.className=`task ${t.done?"done":""} ${t.priority}`;
+li.draggable=true;
+
+let c=document.createElement("input");
+c.type="checkbox";c.checked=t.done;
+c.onchange=()=>{snapshot();t.done=c.checked;save();render()};
+
+let s=document.createElement("span");
+s.textContent=t.text+(t.date?" 📅"+t.date:"");
+s.onclick=()=>{let n=prompt("Editar",t.text);if(n){snapshot();t.text=n;save();render()}};
+
+let del=document.createElement("button");
+del.textContent="✖";del.className="danger";
+del.onclick=()=>{snapshot();tasks=tasks.filter(x=>x.id!==t.id);save();render()};
+
+li.append(c,s,del);
+
+if(t.tags.length){
+let tg=document.createElement("div");
+tg.className="tags";
+tg.textContent=t.tags.join(" ");
+li.appendChild(tg);
+}
+
+t.subs.forEach(sub=>{
+let d=document.createElement("div");
+d.className="sub";
+let sc=document.createElement("input");
+sc.type="checkbox";sc.checked=sub.done;
+sc.onchange=()=>{sub.done=sc.checked;save();render()};
+let ss=document.createElement("span");
+ss.textContent=sub.text;
+d.append(sc,ss);
+li.appendChild(d);
+});
+
+let add=document.createElement("button");
+add.textContent="+";
+add.onclick=()=>{let n=prompt("Subtarea");if(n){snapshot();t.subs.push({text:n,done:false});save();render()}};
+li.appendChild(add);
+
+enableDrag(li,t);
+list.appendChild(li);
+});
+
+updateStats();
+}
+
+function updateStats(){
+let done=tasks.filter(t=>t.done).length;
+stats.textContent=`${done}/${tasks.length} completadas`;
+bar.style.width=(tasks.length?done/tasks.length*100:0)+"%";
+}
+
+function setFilter(f){filter=f;render()}
+function toggleView(){view=view==="list"?"kanban":"list";render()}
+function toggleTheme(){document.body.classList.toggle("light")}
+function toggleFocus(){document.body.classList.toggle("focus")}
+function resetAll(){if(confirm("Seguro")){tasks=[];save();render()}}
+
+function enableDrag(el,t){
+el.ondragstart=e=>e.dataTransfer.setData("id",t.id);
+el.ondragover=e=>e.preventDefault();
+el.ondrop=e=>{
+let from=tasks.findIndex(x=>x.id==e.dataTransfer.getData("id"));
+let to=tasks.indexOf(t);
+tasks.splice(to,0,tasks.splice(from,1)[0]);
+save();render();
+};
+}
+
+/* Pomodoro */
+let time=1500,int=null;
+function startPomodoro(){
+if(int)return;
+int=setInterval(()=>{
+time--;updateTimer();
+if(time<=0){clearInterval(int);int=null;alert("🍅 Fin")}
+},1000);
+}
+function resetPomodoro(){clearInterval(int);int=null;time=1500;updateTimer()}
+function updateTimer(){
+timer.textContent=
+Math.floor(time/60)+":"+String(time%60).padStart(2,"0");
+}
+
+render();updateTimer();
+</script>
+</body>
+</html>
