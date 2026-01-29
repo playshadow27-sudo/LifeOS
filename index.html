@@ -7,66 +7,96 @@
 
 <style>
 :root{
-  --bg:#020617;--panel:#0f172a;--card:#020617;
-  --text:#e5e7eb;--accent:#22c55e;
-  --danger:#ef4444;--warn:#facc15;--muted:#64748b;
+  --bg:#0b1020;
+  --panel:#11172a;
+  --card:#0e1430;
+  --text:#e5e7eb;
+  --muted:#94a3b8;
+  --accent:#38bdf8;
+  --ok:#22c55e;
+  --danger:#ef4444;
+  --radius:14px;
 }
 .light{
-  --bg:#f1f5f9;--panel:#ffffff;--card:#e5e7eb;
+  --bg:#f8fafc;
+  --panel:#ffffff;
+  --card:#e5e7eb;
   --text:#020617;
+  --muted:#475569;
 }
 *{box-sizing:border-box}
 body{
-  margin:0;font-family:system-ui;
-  background:var(--bg);color:var(--text);
-  padding:10px;
+  margin:0;
+  font-family:system-ui;
+  background:var(--bg);
+  color:var(--text);
 }
 .app{
-  max-width:1100px;margin:auto;
-  display:grid;grid-template-columns:2fr 1fr;gap:10px;
+  max-width:1200px;
+  margin:auto;
+  padding:12px;
+  display:grid;
+  grid-template-columns:2.2fr 1fr;
+  gap:12px;
 }
 .panel{
-  background:var(--panel);border-radius:14px;
-  padding:12px;overflow:auto;
+  background:var(--panel);
+  border-radius:var(--radius);
+  padding:14px;
+  overflow:auto;
 }
 h1,h2{margin:.3em 0}
 input,select,textarea,button{
-  background:var(--card);color:var(--text);
-  border:none;border-radius:8px;padding:6px;
+  background:var(--card);
+  color:var(--text);
+  border:none;
+  border-radius:10px;
+  padding:8px;
 }
 button{cursor:pointer}
-.alt{background:#334155}
+.alt{background:#1e293b}
 .danger{background:var(--danger)}
 .task{
-  background:var(--card);margin:6px 0;padding:6px;
-  border-radius:8px;display:flex;gap:6px;
-  align-items:center;
+  background:var(--card);
+  margin:8px 0;
+  padding:10px;
+  border-radius:12px;
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
 }
 .task.done{opacity:.5;text-decoration:line-through}
 .task.high{border-left:4px solid var(--danger)}
-.task.medium{border-left:4px solid var(--warn)}
-.sub{
-  margin-left:20px;font-size:13px;
-  display:flex;gap:5px;
-}
+.task.medium{border-left:4px solid #facc15}
 .tags{font-size:11px;color:var(--accent)}
-.progress{background:#111;border-radius:10px;overflow:hidden;height:10px}
-.progress div{height:100%;background:var(--accent);width:0%;transition:.3s}
-.timer{font-size:32px;text-align:center}
-.focus .panel:last-child{display:none}
+.progress{
+  height:10px;
+  background:#020617;
+  border-radius:999px;
+  overflow:hidden;
+}
+.progress div{
+  height:100%;
+  background:linear-gradient(90deg,var(--accent),var(--ok));
+  width:0%;
+  transition:.3s;
+}
+.timer{font-size:34px;text-align:center}
+.focus .right{display:none}
+small{color:var(--muted)}
 </style>
 </head>
 
 <body>
 <div class="app">
 
-<!-- PANEL IZQUIERDO -->
+<!-- IZQUIERDA -->
 <div class="panel">
 <h1>🧠 LifeOS</h1>
 
 <input id="search" placeholder="Buscar tareas…">
 
-<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
+<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:6px">
 <input id="taskText" placeholder="Nueva tarea (#tags)">
 <input type="date" id="taskDate">
 <select id="taskPriority">
@@ -89,10 +119,10 @@ button{cursor:pointer}
 <ul id="taskList"></ul>
 </div>
 
-<!-- PANEL DERECHO -->
-<div class="panel">
+<!-- DERECHA -->
+<div class="panel right">
 <h2>📈 Progreso</h2>
-<div class="progress"><div id="progressBar"></div></div>
+<div class="progress"><div id="bar"></div></div>
 <small id="stats"></small>
 
 <h2>⏱ Pomodoro</h2>
@@ -101,7 +131,7 @@ button{cursor:pointer}
 <button class="alt" onclick="resetPomodoro()">⟳</button>
 
 <h2>📝 Notas</h2>
-<textarea id="notes" rows="5"></textarea>
+<textarea id="notes" rows="6"></textarea>
 
 <button class="alt" onclick="toggleTheme()">🌓 Tema</button>
 <button class="alt" onclick="toggleFocus()">🎯 Focus</button>
@@ -111,17 +141,16 @@ button{cursor:pointer}
 </div>
 
 <script>
-/* ====== DATA ====== */
+/* ===== DATA ===== */
 let tasks = JSON.parse(localStorage.tasks || "[]");
 let history = [];
 let filter = "all";
 
-/* ====== NOTES ====== */
-const notes = document.getElementById("notes");
+/* ===== NOTES ===== */
 notes.value = localStorage.notes || "";
 notes.oninput = () => localStorage.notes = notes.value;
 
-/* ====== UNDO ====== */
+/* ===== UNDO ===== */
 function snapshot(){
   history.push(JSON.stringify(tasks));
   if(history.length > 30) history.shift();
@@ -132,36 +161,66 @@ function undo(){
   save(); render();
 }
 
-/* ====== STORAGE ====== */
+/* ===== STORAGE ===== */
 function save(){
   localStorage.tasks = JSON.stringify(tasks);
 }
 
-/* ====== ADD TASK ====== */
+/* ===== ADD TASK ===== */
 function addTask(){
   if(!taskText.value.trim()) return;
   snapshot();
   const tags = taskText.value.match(/#\w+/g) || [];
   tasks.push({
-    id:Date.now(),
-    text:taskText.value.replace(/#\w+/g,"").trim(),
+    id: Date.now(),
+    text: taskText.value.replace(/#\w+/g,"").trim(),
     tags,
-    date:taskDate.value,
-    priority:taskPriority.value,
-    done:false,
-    recurrence:null,
-    subs:[]
+    date: taskDate.value,
+    priority: taskPriority.value,
+    done:false
   });
   taskText.value=""; taskDate.value="";
   save(); render();
 }
 
-/* ====== RENDER ====== */
-function render(){
-  const list = document.getElementById("taskList");
-  list.innerHTML="";
-  const q = search.value.toLowerCase();
+/* ===== MINI IA: PRIORIDAD ===== */
+const KEYWORDS = {
+  urgente:5, examen:4, entrega:4,
+  proyecto:3, estudio:2, trabajo:2
+};
+
+function scoreTask(t){
+  let s = 0;
   const today = new Date().toISOString().slice(0,10);
+
+  if(t.priority==="high") s+=6;
+  if(t.priority==="medium") s+=3;
+
+  if(t.date){
+    if(t.date===today) s+=6;
+    else s+=2;
+  }
+
+  s += Math.min(5,(Date.now()-t.id)/86400000);
+
+  const text=t.text.toLowerCase();
+  for(const k in KEYWORDS){
+    if(text.includes(k)) s+=KEYWORDS[k];
+  }
+  return s;
+}
+
+function autoPrioritize(){
+  tasks.forEach(t=>t._score=scoreTask(t));
+  tasks.sort((a,b)=>b._score-a._score);
+}
+
+/* ===== RENDER ===== */
+function render(){
+  autoPrioritize();
+  taskList.innerHTML="";
+  const q=search.value.toLowerCase();
+  const today=new Date().toISOString().slice(0,10);
 
   tasks.filter(t=>{
     if(filter==="done"&&!t.done) return false;
@@ -169,38 +228,30 @@ function render(){
     if(filter==="today"&&t.date!==today) return false;
     if(q&&!t.text.toLowerCase().includes(q)) return false;
     return true;
-  }).forEach(t=>{
+  }).forEach((t,i)=>{
     const li=document.createElement("li");
     li.className=`task ${t.done?"done":""} ${t.priority}`;
-    li.draggable=true;
+    if(i===0 && !t.done){
+      li.style.boxShadow="0 0 0 2px var(--accent)";
+      li.title="Recomendado por la IA";
+    }
 
-    const chk=document.createElement("input");
-    chk.type="checkbox"; chk.checked=t.done;
-    chk.onchange=()=>{
-      snapshot();
-      t.done=chk.checked;
-      if(t.done && t.recurrence){
-        const d=new Date(t.date||new Date());
-        if(t.recurrence==="daily") d.setDate(d.getDate()+1);
-        if(t.recurrence==="weekly") d.setDate(d.getDate()+7);
-        t.date=d.toISOString().slice(0,10);
-        t.done=false;
-      }
-      save(); render();
-    };
+    const c=document.createElement("input");
+    c.type="checkbox"; c.checked=t.done;
+    c.onchange=()=>{snapshot();t.done=c.checked;save();render();};
 
-    const span=document.createElement("span");
-    span.textContent=t.text+(t.date?" 📅"+t.date:"");
-    span.onclick=()=>{
+    const s=document.createElement("span");
+    s.textContent=t.text+(t.date?" 📅"+t.date:"");
+    s.onclick=()=>{
       const n=prompt("Editar tarea",t.text);
       if(n){snapshot();t.text=n;save();render();}
     };
 
-    const del=document.createElement("button");
-    del.textContent="✖"; del.className="danger";
-    del.onclick=()=>{snapshot();tasks=tasks.filter(x=>x.id!==t.id);save();render();};
+    const d=document.createElement("button");
+    d.textContent="✖"; d.className="danger";
+    d.onclick=()=>{snapshot();tasks=tasks.filter(x=>x.id!==t.id);save();render();};
 
-    li.append(chk,span,del);
+    li.append(c,s,d);
 
     if(t.tags.length){
       const tg=document.createElement("div");
@@ -209,76 +260,32 @@ function render(){
       li.appendChild(tg);
     }
 
-    t.subs.forEach(s=>{
-      const d=document.createElement("div");
-      d.className="sub";
-      const c=document.createElement("input");
-      c.type="checkbox"; c.checked=s.done;
-      c.onchange=()=>{s.done=c.checked;save();render();};
-      const sp=document.createElement("span");
-      sp.textContent=s.text;
-      d.append(c,sp);
-      li.appendChild(d);
-    });
-
-    const add=document.createElement("button");
-    add.textContent="+";
-    add.onclick=()=>{
-      const n=prompt("Subtarea");
-      if(n){snapshot();t.subs.push({text:n,done:false});save();render();}
-    };
-
-    const rec=document.createElement("button");
-    rec.textContent="↻";
-    rec.onclick=()=>{
-      snapshot();
-      t.recurrence = t.recurrence==="daily"?"weekly":
-                     t.recurrence==="weekly"?null:"daily";
-      save(); render();
-    };
-
-    li.append(add,rec);
-    enableDrag(li,t);
-    list.appendChild(li);
+    taskList.appendChild(li);
   });
 
   updateProgress();
 }
 
-/* ====== PROGRESS ====== */
+/* ===== PROGRESS ===== */
 function updateProgress(){
   const done=tasks.filter(t=>t.done).length;
-  stats.textContent=`${done} / ${tasks.length} completadas`;
-  progressBar.style.width=(tasks.length?done/tasks.length*100:0)+"%";
+  stats.textContent=`${done}/${tasks.length} completadas`;
+  bar.style.width=(tasks.length?done/tasks.length*100:0)+"%";
 }
 
-/* ====== FILTERS ====== */
+/* ===== UI ===== */
 function setFilter(f){filter=f;render();}
-
-/* ====== DRAG ====== */
-function enableDrag(el,t){
-  el.ondragstart=e=>e.dataTransfer.setData("id",t.id);
-  el.ondragover=e=>e.preventDefault();
-  el.ondrop=e=>{
-    const from=tasks.findIndex(x=>x.id==e.dataTransfer.getData("id"));
-    const to=tasks.indexOf(t);
-    tasks.splice(to,0,tasks.splice(from,1)[0]);
-    save();render();
-  };
-}
-
-/* ====== UI ====== */
 function toggleTheme(){document.body.classList.toggle("light");}
 function toggleFocus(){document.body.classList.toggle("focus");}
 function resetAll(){if(confirm("Seguro")){tasks=[];save();render();}}
 
-/* ====== POMODORO ====== */
+/* ===== POMODORO ===== */
 let time=1500,int=null;
 function startPomodoro(){
-  if(int) return;
+  if(int)return;
   int=setInterval(()=>{
-    time--; updateTimer();
-    if(time<=0){clearInterval(int);int=null;alert("🍅 Pomodoro terminado");}
+    time--;updateTimer();
+    if(time<=0){clearInterval(int);int=null;alert("🍅 Fin");}
   },1000);
 }
 function resetPomodoro(){clearInterval(int);int=null;time=1500;updateTimer();}
@@ -286,7 +293,7 @@ function updateTimer(){
   timer.textContent=Math.floor(time/60)+":"+String(time%60).padStart(2,"0");
 }
 
-render(); updateTimer();
+render();updateTimer();
 </script>
 </body>
 </html>
