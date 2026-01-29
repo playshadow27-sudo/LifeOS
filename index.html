@@ -4,64 +4,67 @@
 <meta charset="UTF-8">
 <title>LifeOS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
 :root{
---bg:#020617;--panel:#0f172a;--card:#020617;
---text:#e5e7eb;--accent:#22c55e;--danger:#ef4444;
---warn:#facc15;--muted:#64748b;
+  --bg:#020617;--panel:#0f172a;--card:#020617;
+  --text:#e5e7eb;--accent:#22c55e;
+  --danger:#ef4444;--warn:#facc15;--muted:#64748b;
 }
 .light{
---bg:#f1f5f9;--panel:#ffffff;--card:#e5e7eb;
---text:#020617;
+  --bg:#f1f5f9;--panel:#ffffff;--card:#e5e7eb;
+  --text:#020617;
 }
 *{box-sizing:border-box}
 body{
-margin:0;font-family:system-ui;background:var(--bg);
-color:var(--text);padding:10px;
+  margin:0;font-family:system-ui;
+  background:var(--bg);color:var(--text);
+  padding:10px;
 }
 .app{
-max-width:1100px;margin:auto;
-display:grid;grid-template-columns:2fr 1fr;gap:10px;
+  max-width:1100px;margin:auto;
+  display:grid;grid-template-columns:2fr 1fr;gap:10px;
 }
 .panel{
-background:var(--panel);border-radius:14px;
-padding:12px;overflow:auto;
+  background:var(--panel);border-radius:14px;
+  padding:12px;overflow:auto;
 }
-h1,h2{margin:.2em 0}
+h1,h2{margin:.3em 0}
 input,select,textarea,button{
-background:var(--card);color:var(--text);
-border:none;border-radius:8px;padding:6px;
+  background:var(--card);color:var(--text);
+  border:none;border-radius:8px;padding:6px;
 }
 button{cursor:pointer}
 .alt{background:#334155}
 .danger{background:var(--danger)}
 .task{
-background:var(--card);margin:6px 0;padding:6px;
-border-radius:8px;display:flex;gap:6px;align-items:center;
+  background:var(--card);margin:6px 0;padding:6px;
+  border-radius:8px;display:flex;gap:6px;
+  align-items:center;
 }
 .task.done{opacity:.5;text-decoration:line-through}
 .task.high{border-left:4px solid var(--danger)}
 .task.medium{border-left:4px solid var(--warn)}
 .sub{
-margin-left:20px;font-size:13px;
-display:flex;gap:5px;
+  margin-left:20px;font-size:13px;
+  display:flex;gap:5px;
 }
 .tags{font-size:11px;color:var(--accent)}
 .progress{background:#111;border-radius:10px;overflow:hidden;height:10px}
-.progress div{height:100%;background:var(--accent)}
-.focus .panel:last-child{display:none}
+.progress div{height:100%;background:var(--accent);width:0%;transition:.3s}
 .timer{font-size:32px;text-align:center}
+.focus .panel:last-child{display:none}
 </style>
 </head>
 
 <body>
 <div class="app">
 
-<!-- IZQUIERDA -->
+<!-- PANEL IZQUIERDO -->
 <div class="panel">
 <h1>🧠 LifeOS</h1>
 
-<input id="search" placeholder="Buscar…">
+<input id="search" placeholder="Buscar tareas…">
 
 <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:4px">
 <input id="taskText" placeholder="Nueva tarea (#tags)">
@@ -75,7 +78,6 @@ display:flex;gap:5px;
 
 <button onclick="addTask()">➕ Añadir</button>
 <button class="alt" onclick="undo()">↩ Undo</button>
-<button class="alt" onclick="toggleView()">🧱 Kanban</button>
 
 <div>
 <button class="alt" onclick="setFilter('all')">Todas</button>
@@ -87,10 +89,10 @@ display:flex;gap:5px;
 <ul id="taskList"></ul>
 </div>
 
-<!-- DERECHA -->
+<!-- PANEL DERECHO -->
 <div class="panel">
-<h2>📊 Progreso</h2>
-<div class="progress"><div id="bar"></div></div>
+<h2>📈 Progreso</h2>
+<div class="progress"><div id="progressBar"></div></div>
 <small id="stats"></small>
 
 <h2>⏱ Pomodoro</h2>
@@ -109,149 +111,182 @@ display:flex;gap:5px;
 </div>
 
 <script>
-let tasks=JSON.parse(localStorage.tasks||"[]");
-let notes=document.getElementById("notes");
-notes.value=localStorage.notes||"";
-notes.oninput=()=>localStorage.notes=notes.value;
+/* ====== DATA ====== */
+let tasks = JSON.parse(localStorage.tasks || "[]");
+let history = [];
+let filter = "all";
 
-let filter="all",view="list";
-let history=[];
+/* ====== NOTES ====== */
+const notes = document.getElementById("notes");
+notes.value = localStorage.notes || "";
+notes.oninput = () => localStorage.notes = notes.value;
 
+/* ====== UNDO ====== */
 function snapshot(){
-history.push(JSON.stringify(tasks));
-if(history.length>20)history.shift();
+  history.push(JSON.stringify(tasks));
+  if(history.length > 30) history.shift();
 }
-
 function undo(){
-if(!history.length)return;
-tasks=JSON.parse(history.pop());
-save();render();
+  if(!history.length) return;
+  tasks = JSON.parse(history.pop());
+  save(); render();
 }
 
+/* ====== STORAGE ====== */
 function save(){
-localStorage.tasks=JSON.stringify(tasks);
+  localStorage.tasks = JSON.stringify(tasks);
 }
 
+/* ====== ADD TASK ====== */
 function addTask(){
-if(!taskText.value.trim())return;
-snapshot();
-let tags=taskText.value.match(/#\w+/g)||[];
-tasks.push({
-id:Date.now(),
-text:taskText.value.replace(/#\w+/g,"").trim(),
-tags,
-date:taskDate.value,
-priority:taskPriority.value,
-done:false,
-subs:[]
-});
-taskText.value="";taskDate.value="";
-save();render();
+  if(!taskText.value.trim()) return;
+  snapshot();
+  const tags = taskText.value.match(/#\w+/g) || [];
+  tasks.push({
+    id:Date.now(),
+    text:taskText.value.replace(/#\w+/g,"").trim(),
+    tags,
+    date:taskDate.value,
+    priority:taskPriority.value,
+    done:false,
+    recurrence:null,
+    subs:[]
+  });
+  taskText.value=""; taskDate.value="";
+  save(); render();
 }
 
+/* ====== RENDER ====== */
 function render(){
-let list=document.getElementById("taskList");
-list.innerHTML="";
-let q=search.value.toLowerCase();
-let today=new Date().toISOString().slice(0,10);
+  const list = document.getElementById("taskList");
+  list.innerHTML="";
+  const q = search.value.toLowerCase();
+  const today = new Date().toISOString().slice(0,10);
 
-let visible=tasks.filter(t=>{
-if(filter==="done"&&!t.done)return false;
-if(filter==="todo"&&t.done)return false;
-if(filter==="today"&&t.date!==today)return false;
-if(q&&!t.text.toLowerCase().includes(q))return false;
-return true;
-});
+  tasks.filter(t=>{
+    if(filter==="done"&&!t.done) return false;
+    if(filter==="todo"&&t.done) return false;
+    if(filter==="today"&&t.date!==today) return false;
+    if(q&&!t.text.toLowerCase().includes(q)) return false;
+    return true;
+  }).forEach(t=>{
+    const li=document.createElement("li");
+    li.className=`task ${t.done?"done":""} ${t.priority}`;
+    li.draggable=true;
 
-visible.forEach(t=>{
-let li=document.createElement("li");
-li.className=`task ${t.done?"done":""} ${t.priority}`;
-li.draggable=true;
+    const chk=document.createElement("input");
+    chk.type="checkbox"; chk.checked=t.done;
+    chk.onchange=()=>{
+      snapshot();
+      t.done=chk.checked;
+      if(t.done && t.recurrence){
+        const d=new Date(t.date||new Date());
+        if(t.recurrence==="daily") d.setDate(d.getDate()+1);
+        if(t.recurrence==="weekly") d.setDate(d.getDate()+7);
+        t.date=d.toISOString().slice(0,10);
+        t.done=false;
+      }
+      save(); render();
+    };
 
-let c=document.createElement("input");
-c.type="checkbox";c.checked=t.done;
-c.onchange=()=>{snapshot();t.done=c.checked;save();render()};
+    const span=document.createElement("span");
+    span.textContent=t.text+(t.date?" 📅"+t.date:"");
+    span.onclick=()=>{
+      const n=prompt("Editar tarea",t.text);
+      if(n){snapshot();t.text=n;save();render();}
+    };
 
-let s=document.createElement("span");
-s.textContent=t.text+(t.date?" 📅"+t.date:"");
-s.onclick=()=>{let n=prompt("Editar",t.text);if(n){snapshot();t.text=n;save();render()}};
+    const del=document.createElement("button");
+    del.textContent="✖"; del.className="danger";
+    del.onclick=()=>{snapshot();tasks=tasks.filter(x=>x.id!==t.id);save();render();};
 
-let del=document.createElement("button");
-del.textContent="✖";del.className="danger";
-del.onclick=()=>{snapshot();tasks=tasks.filter(x=>x.id!==t.id);save();render()};
+    li.append(chk,span,del);
 
-li.append(c,s,del);
+    if(t.tags.length){
+      const tg=document.createElement("div");
+      tg.className="tags";
+      tg.textContent=t.tags.join(" ");
+      li.appendChild(tg);
+    }
 
-if(t.tags.length){
-let tg=document.createElement("div");
-tg.className="tags";
-tg.textContent=t.tags.join(" ");
-li.appendChild(tg);
+    t.subs.forEach(s=>{
+      const d=document.createElement("div");
+      d.className="sub";
+      const c=document.createElement("input");
+      c.type="checkbox"; c.checked=s.done;
+      c.onchange=()=>{s.done=c.checked;save();render();};
+      const sp=document.createElement("span");
+      sp.textContent=s.text;
+      d.append(c,sp);
+      li.appendChild(d);
+    });
+
+    const add=document.createElement("button");
+    add.textContent="+";
+    add.onclick=()=>{
+      const n=prompt("Subtarea");
+      if(n){snapshot();t.subs.push({text:n,done:false});save();render();}
+    };
+
+    const rec=document.createElement("button");
+    rec.textContent="↻";
+    rec.onclick=()=>{
+      snapshot();
+      t.recurrence = t.recurrence==="daily"?"weekly":
+                     t.recurrence==="weekly"?null:"daily";
+      save(); render();
+    };
+
+    li.append(add,rec);
+    enableDrag(li,t);
+    list.appendChild(li);
+  });
+
+  updateProgress();
 }
 
-t.subs.forEach(sub=>{
-let d=document.createElement("div");
-d.className="sub";
-let sc=document.createElement("input");
-sc.type="checkbox";sc.checked=sub.done;
-sc.onchange=()=>{sub.done=sc.checked;save();render()};
-let ss=document.createElement("span");
-ss.textContent=sub.text;
-d.append(sc,ss);
-li.appendChild(d);
-});
-
-let add=document.createElement("button");
-add.textContent="+";
-add.onclick=()=>{let n=prompt("Subtarea");if(n){snapshot();t.subs.push({text:n,done:false});save();render()}};
-li.appendChild(add);
-
-enableDrag(li,t);
-list.appendChild(li);
-});
-
-updateStats();
+/* ====== PROGRESS ====== */
+function updateProgress(){
+  const done=tasks.filter(t=>t.done).length;
+  stats.textContent=`${done} / ${tasks.length} completadas`;
+  progressBar.style.width=(tasks.length?done/tasks.length*100:0)+"%";
 }
 
-function updateStats(){
-let done=tasks.filter(t=>t.done).length;
-stats.textContent=`${done}/${tasks.length} completadas`;
-bar.style.width=(tasks.length?done/tasks.length*100:0)+"%";
-}
+/* ====== FILTERS ====== */
+function setFilter(f){filter=f;render();}
 
-function setFilter(f){filter=f;render()}
-function toggleView(){view=view==="list"?"kanban":"list";render()}
-function toggleTheme(){document.body.classList.toggle("light")}
-function toggleFocus(){document.body.classList.toggle("focus")}
-function resetAll(){if(confirm("Seguro")){tasks=[];save();render()}}
-
+/* ====== DRAG ====== */
 function enableDrag(el,t){
-el.ondragstart=e=>e.dataTransfer.setData("id",t.id);
-el.ondragover=e=>e.preventDefault();
-el.ondrop=e=>{
-let from=tasks.findIndex(x=>x.id==e.dataTransfer.getData("id"));
-let to=tasks.indexOf(t);
-tasks.splice(to,0,tasks.splice(from,1)[0]);
-save();render();
-};
+  el.ondragstart=e=>e.dataTransfer.setData("id",t.id);
+  el.ondragover=e=>e.preventDefault();
+  el.ondrop=e=>{
+    const from=tasks.findIndex(x=>x.id==e.dataTransfer.getData("id"));
+    const to=tasks.indexOf(t);
+    tasks.splice(to,0,tasks.splice(from,1)[0]);
+    save();render();
+  };
 }
 
-/* Pomodoro */
+/* ====== UI ====== */
+function toggleTheme(){document.body.classList.toggle("light");}
+function toggleFocus(){document.body.classList.toggle("focus");}
+function resetAll(){if(confirm("Seguro")){tasks=[];save();render();}}
+
+/* ====== POMODORO ====== */
 let time=1500,int=null;
 function startPomodoro(){
-if(int)return;
-int=setInterval(()=>{
-time--;updateTimer();
-if(time<=0){clearInterval(int);int=null;alert("🍅 Fin")}
-},1000);
+  if(int) return;
+  int=setInterval(()=>{
+    time--; updateTimer();
+    if(time<=0){clearInterval(int);int=null;alert("🍅 Pomodoro terminado");}
+  },1000);
 }
-function resetPomodoro(){clearInterval(int);int=null;time=1500;updateTimer()}
+function resetPomodoro(){clearInterval(int);int=null;time=1500;updateTimer();}
 function updateTimer(){
-timer.textContent=
-Math.floor(time/60)+":"+String(time%60).padStart(2,"0");
+  timer.textContent=Math.floor(time/60)+":"+String(time%60).padStart(2,"0");
 }
 
-render();updateTimer();
+render(); updateTimer();
 </script>
 </body>
 </html>
